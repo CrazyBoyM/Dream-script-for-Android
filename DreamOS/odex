@@ -1,0 +1,95 @@
+#!/sbin/sh
+
+if [ -f /tmp/tmp.odex ]
+then
+	rm /tmp/tmp.odex
+fi
+
+BOOTCLASSPATH=/system/framework/core.jar
+
+for framework in bouncycastle.jar ext.jar framework.jar android.policy.jar services.jar core-junit.jar
+do
+	if [ -f /system/framework/$framework ]
+	then
+	BOOTCLASSPATH=$BOOTCLASSPATH:/system/framework/$framework
+	fi
+done
+
+echo BOOTCLASSPATH=$BOOTCLASSPATH
+
+echo - - - begin bootstrap framework - - -
+cd /system/framework
+
+for filename in core.jar bouncycastle.jar ext.jar framework.jar android.policy.jar services.jar core-junit.jar
+do
+	name=`basename $filename .jar`
+	if [ -f $filename ]
+	then
+		if [ ! -f $name.odex ]
+		then 
+			echo - - - processing $filename - - -
+			/tmp/dexopt-wrapper $filename /tmp/tmp.odex $BOOTCLASSPATH
+			if [ $? -eq 0 ]
+			then
+				echo - - - removing classess.dex from $filename - - -
+				/tmp/zip -d $filename classes.dex
+				cp /tmp/tmp.odex $name.odex
+				rm /tmp/tmp.odex
+				chmod 644 $name.odex
+			else
+				rm /tmp/tmp.odex
+			fi
+		fi
+	fi
+done
+echo - - - end bootstrap framework - - -
+
+echo - - - begin framework - - -
+cd /system/framework
+for filename in *.jar
+do
+	name=`basename $filename .jar`
+		if [ ! -f $name.odex ]
+		then 
+			echo - - - processing $filename - - -
+			/tmp/dexopt-wrapper $filename /tmp/tmp.odex $BOOTCLASSPATH
+			if [ $? -eq 0 ]
+			then
+				echo - - - removing classess.dex from $filename - - -
+				/tmp/zip -d $filename classes.dex
+				cp /tmp/tmp.odex $name.odex
+				rm /tmp/tmp.odex
+				chmod 644 $name.odex
+			else
+				rm /tmp/tmp.odex
+			fi
+		fi
+done
+echo - - - end framework - - -
+
+echo - - - begin application  - - -
+cd /system/app
+for filename in *.apk
+do
+	name=`basename $filename .apk`
+	if [ ! -f $name.odex ]
+        then
+		echo - - - processing $filename - - -
+		/tmp/dexopt-wrapper $filename /tmp/tmp.odex $BOOTCLASSPATH
+
+		if [ $? -eq 0 ]
+		then
+			echo - - - removing classess.dex from $filename - - -
+			/tmp/zip -d $filename classes.dex
+			echo - - - zipalign from $filename - - -
+			/tmp/zipalign -f 4 $filename /tmp/$filename.new
+			cat /tmp/$filename.new >$filename
+			cp /tmp/tmp.odex $name.odex
+			rm /tmp/$filename.new
+			rm /tmp/tmp.odex
+			chmod 644 /system/app/$name.odex
+			sleep 1
+		fi
+	fi
+done
+echo - - - end application  - - -

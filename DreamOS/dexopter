@@ -1,0 +1,103 @@
+#!/system/bin/sh
+
+busybox mount -orw,remount /system
+
+odexframework=/system/framework/core.odex;
+odexapp=/system/app/Phone.odex;
+odexapp1=/system/app/BlurPhone.odex;
+
+dexopt_core()
+{
+if [ -f "$odexapp" ] || [ -f "$odexapp1" ]; then
+	echo "ODEX files present in /system/app, exiting"
+	exit
+else if [ -f "$odexframework" ]; then
+	echo "ODEX files present in /system/framework, exiting"
+	exit
+else
+	echo " "
+	echo "Dexopting core framework archives, do not interrupt"
+	echo " "
+	dexopt-wrapper /system/framework/core.jar /system/framework/core.odex
+	dexopt-wrapper /system/framework/bouncycastle.jar /system/framework/bouncycastle.odex
+	dexopt-wrapper /system/framework/ext.jar /system/framework/ext.odex
+	dexopt-wrapper /system/framework/framework.jar /system/framework/framework.odex
+	dexopt-wrapper /system/framework/android.policy.jar /system/framework/android.policy.odex
+	dexopt-wrapper /system/framework/services.jar /system/framework/services.odex
+	dexopt-wrapper /system/framework/core-junit.jar /system/framework/core-junit.odex
+	dexopt-wrapper /system/framework/com.motorola.android.frameworks.jar /system/framework/com.motorola.android.frameworks.odex
+	dexopt-wrapper /system/framework/com.motorola.android.widget.jar /system/framework/com.motorola.android.widget.odex
+	dexopt-wrapper /system/framework/com.motorola.android.telephony.jar /system/framework/com.motorola.android.telephony.odex
+	dexopt-wrapper /system/framework/android.test.runner.jar /system/framework/android.test.runner.odex
+fi; fi
+}
+
+dexopt_rest()
+{
+echo "Dexopting secondary framework archives, do not interrupt"
+for j in /system/framework/*.jar
+do
+	odexj=`echo $j | sed -e 's/.jar/.odex/g'`
+	if [ -f $odexj ]; then
+		echo "++++++++++++"
+		echo "$odexj already exists, skipping"
+		echo "++++++++++++"
+	else
+		echo "dexopt-wrapper $j $odex"
+		dexopt-wrapper $j $odexj
+	fi
+done
+}
+
+dexopt_app()
+{
+if [ -f "$odexapp" ] || [ -f "$odexapp1" ]; then
+	echo "ODEX files present in /system/app, exiting"
+	exit
+else if [ -f "$odexframework" ]; then
+	echo "Dexopting system applications, do not interrupt";
+	for i in /system/app/*.apk
+	do
+		odex=`echo $i | sed -e 's/.apk/.odex/g'`
+		echo "dexopt-wrapper $i $odex"
+		dexopt-wrapper $i $odex
+	done
+else
+	echo "Please dexopt /system/framework first, exiting"
+	exit
+fi; fi
+}
+
+if [[ "${1}" == "FR" ]] || [[ "${1}" == "fr" ]]; then
+	echo "Clearing dalvik-cache"
+	busybox rm -f /data/dalvik-cache/*
+	dexopt_core
+	dexopt_rest
+	exit
+else if [[ "${1}" == "APP" ]] || [[ "${1}" == "app" ]]; then
+	echo "Clearing dalvik-cache"
+	busybox rm -f /data/dalvik-cache/*
+	dexopt_app
+	exit
+else if [[ "${1}" == "ALL" ]] || [[ "${1}" == "all" ]]; then
+	echo "Clearing dalvik-cache"
+	busybox rm -f /data/dalvik-cache/*
+	dexopt_core
+	dexopt_rest
+	dexopt_app
+	exit
+else
+	echo "Directions: "
+	echo "This script allows you to create .odex files"
+	echo "to optimize dalvik runtime"
+	echo " "
+	echo " How to use: "
+	echo " FR	-	Framework"
+	echo " APP	-	System Apps"
+	echo " ALL	-	Framework/System Apps"
+	echo " "
+	echo " WARNING! ALWAYS DEXOPT FRAMEWORKS THEN "
+	echo " SYSTEM APPLICATIONS."
+fi; fi; fi
+
+busybox mount -oro,remount /system
